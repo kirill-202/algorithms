@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"os"
-	"slices"
 
 )
 
@@ -77,8 +76,6 @@ func (q *Queue) Dequeue() (int, error) {
 				}
 				tmp = append(tmp, value)
 			}
-
-			slices.Reverse(tmp)
 			for _, value := range tmp {
 				q.frontStack.Push(value)
 			}
