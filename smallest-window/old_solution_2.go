@@ -44,6 +44,23 @@ func doesContainAllChars(substring string, runeChecker map[rune]bool) bool {
 	return true
 }
 
+func chunkString(s string, chunkSize int) []string {
+	if chunkSize <= 0 {
+		return nil
+	}
+	var chunks []string
+	for i := 0; i < len(s); i += chunkSize {
+		end := i + chunkSize
+		if end > len(s) {
+			end = len(s)
+		}
+		chunks = append(chunks, s[i:end])
+	}
+	return chunks
+}
+
+
+
 
 func GetSmallestWindow(main, substring string) string {
 	checker := PopulateCharChecker(main)
@@ -51,29 +68,43 @@ func GetSmallestWindow(main, substring string) string {
 		return ""
 	}
 
-	return  SlidingCheck(main, substring, len(substring))
+	return  GetSubstring(main, substring, len(substring))
 }
 
-func SlidingCheck(main, sub string, length int) (resultStr string) {
+func GetSubstring(main, sub string, length int) (resultStr string) {
 
+	if length == len(main) {
+		return main
+	}
+
+	testSubstrings := chunkString(main, length)
 	
 	//shift substring chunks up to the current length-1
-	for i:=0;i<len(main)-length; i++ {
-		chunk := main[i:length+i]
+	iters := length-1
+
+	for i:=1; iters>0; i++ {
+		iters--
+		additonalStep := chunkString(main[i:], length)
+		testSubstrings = append(testSubstrings, additonalStep...)
+	}
+	fmt.Println(testSubstrings)
+
+	for _, chunk := range testSubstrings {
 		tempChecker := PopulateCharChecker(chunk)
 		if doesContainAllChars(sub, tempChecker) {
 			return chunk
-		}
-
+		} 
 	}
+	
 	length++
 
-	return SlidingCheck(main, sub, length)
+	return GetSubstring(main, sub, length)
 }	
+
 
 func main() {
 	
-	input :=  "CBAAAADOCBEAECODEBANCZ"
+	input :=  "AAAADOCBEAECODEBANCZ"
 	substring := "ABC"
 
 	fmt.Println("This is the challenge start!")
