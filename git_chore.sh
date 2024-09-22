@@ -8,5 +8,10 @@ fi
 
 current_branch=$(git branch --show-current)
 
-git add . && git commit -m "$1" && git push origin "$current_branch" && \
-echo && echo "Success: GitHub repository has been updated"
+git add . && git commit -m "$1" && git push origin "$current_branch"
+
+if [ $? -eq 0 ]; then
+    echo && echo "Success: GitHub repository has been updated"
+else
+    echo && echo "Command failed!"
+fi
