@@ -9,4 +9,4 @@ fi
 current_branch=$(git branch --show-current)
 
 git add . && git commit -m "$1" && git push origin "$current_branch" && \
-echo "Success: GitHub repository has been updated"
+echo && echo "Success: GitHub repository has been updated"
