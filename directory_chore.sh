@@ -5,6 +5,11 @@ if [ $# -eq 0 ]; then
     exit 1
 fi
 
+if [ $# -ne 1 ]; then
+    echo "Error: Provide a single string. Use - for word separation"
+    exit 1
+fi
+
 directory_name="$1"
 package_name="${directory_name//-/_}"
 
