@@ -1,33 +1,73 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
+	"image/png"
+	"io"
+	"net/http"
+	"os"
+	"github.com/fogleman/gg"
 )
 
-type CustomerError error
+func SendCircle() {
 
-type SecondLevelError CustomerError
+	url := "http://localhost:8080"
+    dc := gg.NewContext(1000, 1000)
+    dc.DrawCircle(500, 500, 400)
+    dc.SetRGB(1, 1, 1)
+    dc.Fill()
 
-type Myint int
 
-type SecondInt Myint
+	var buf bytes.Buffer
 
-func (m Myint) String() string {
-	return "Myint"
+	png.Encode(&buf, dc.Image())
+	resp, err := http.Post(url, "image/png", &buf)
+
+	if err != nil {
+		fmt.Println("Error sending image:", err)
+		return
+	}
+	defer resp.Body.Close()
+
 }
 
-func (s SecondInt) String() string {
-	return "SecondInt"
+
+func submitHandler(w http.ResponseWriter, r *http.Request) {
+	// Check that the request is a POST
+	if r.Method != http.MethodPost {
+		http.Error(w, "Invalid request method", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// Create a file to save the uploaded image
+	out, err := os.Create("uploaded_image.png")
+	if err != nil {
+		http.Error(w, "Unable to create the file", http.StatusInternalServerError)
+		return
+	}
+	defer out.Close()
+
+	// Copy the image data from the request body to the file
+	_, err = io.Copy(out, r.Body)
+	if err != nil {
+		http.Error(w, "Unable to save the image", http.StatusInternalServerError)
+		return
+	}
+	defer r.Body.Close()
+
+	// Respond back to the client
+	fmt.Fprintf(w, "Image uploaded successfully")
 }
 
 func main() {
+	// Route that handles the image upload
+	http.HandleFunc("/submit", submitHandler)
 
-	testInt := 10
-	testMy := Myint(testInt)
-	testS := SecondInt(testMy)
-	fmt.Printf("test var %d, %d, type %T\n", testInt, testInt, testInt)
-
-	fmt.Printf("test var %d, %s, type %T\n", testMy, testMy, testMy)
-
-	fmt.Printf("test var %d, %s, type %T\n", testS, testS, testS)
+	// Start the server on localhost:8080
+	fmt.Println("Server running on http://localhost:8080")
+	if err := http.ListenAndServe(":8080", nil); err != nil {
+		fmt.Println("Error starting server:", err)
+	}
+	SendCircle()
 }
