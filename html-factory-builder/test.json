@@ -1,0 +1,5 @@
+[
+    {"Tag": "head", "Content": "<title>Test Page</title>"},
+    {"Tag": "body", "Content": "<h1>Hello, World!</h1>"},
+    {"Tag": "footer", "Content": "<p>Footer content</p>"}
+]
