@@ -52,8 +52,8 @@ func (d *Date) calculateWeekday() {
     f := d.Day + (13*(month+ 1))/5 + centYear + (centYear / 4) + (century / 4) - (2* century)
 
     // Calculate the weekday
-    d.Weekday = Weekday((f % 7 + 7) % 7) // To ensure non-negative value
-	d.Weekday = (d.Weekday + 6) % 7
+    d.Weekday = Weekday((f % 7 + 6) % 7) // To ensure non-negative value
+
 }
 
 
@@ -91,7 +91,7 @@ func main() {
 		fmt.Println(err)
 		os.Exit(1)
 	}
-	fmt.Println("Weekday", myDate.Weekday)
+	fmt.Println("Weekday:", myDate.Weekday)
 }
 
 
