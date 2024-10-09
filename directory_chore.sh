@@ -10,7 +10,8 @@ if [ $# -ne 1 ]; then
     exit 1
 fi
 
-directory_name="$1"
+current_date=$(date +"%Y-%m-%d" |  awk "{print $2}")
+directory_name="$1-${current_date}"
 package_name="${directory_name//-/_}"
 
-mkdir "$directory_name" && cd "$directory_name" && touch main.go && go mod init "$package_name"
+mkdir "${directory_name}" && cd "${directory_name}" && touch main.go && go mod init "${package_name}"
