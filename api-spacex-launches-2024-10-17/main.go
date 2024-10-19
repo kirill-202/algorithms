@@ -170,6 +170,9 @@ func main() {
 	var endpoint string
 	var past bool
 
+	StartTime := time.Now()
+	fmt.Println("Program has started at:", StartTime.Format("2006-01-02T15:04:05"))
+
 	fmt.Print("Program has started... Provide the flag: ")
 
 	_, err := fmt.Scan(&flag); if err != nil {
@@ -221,7 +224,7 @@ func main() {
 		launches = append(launches, launch)
 	}
 
-
+	fmt.Printf("%0.2F seconds elapsed since program start\n", time.Since(StartTime).Seconds())
 	PaginateLaunches(launches, 5, past)
 
 }
