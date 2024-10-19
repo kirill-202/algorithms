@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"os"
 	"strings"
+	"sync"
 )
 
 
@@ -81,8 +82,8 @@ func GetRocket(rocketID string) (*Rocket, error) {
 
 
 
-func NewLaunch(rawResponse LaunchAPIResponse) Launch {
-
+func NewLaunch(rawResponse LaunchAPIResponse, wg *sync.WaitGroup) Launch {
+	
 	date, err := ParseDate(rawResponse.RawDate); if err != nil {
 		date = nil
 	}
@@ -92,6 +93,8 @@ func NewLaunch(rawResponse LaunchAPIResponse) Launch {
 	location, err := GetLocation(rawResponse.LaunchpadID); if err != nil {
 		location = nil
 	}
+
+	defer wg.Done()
 
 	return Launch{
 		Date: date,
@@ -170,6 +173,8 @@ func main() {
 	var endpoint string
 	var past bool
 
+	var wg sync.WaitGroup
+
 	StartTime := time.Now()
 	fmt.Println("Program has started at:", StartTime.Format("2006-01-02T15:04:05"))
 
@@ -219,12 +224,23 @@ func main() {
 
 	fmt.Println("Processing response to launch data...")
 	launches := make([]Launch, 0, len(responseData))
+
+	var mu sync.Mutex
 	for _, v := range responseData {
-		launch := NewLaunch(v)
-		launches = append(launches, launch)
+		wg.Add(1)
+		go func(v LaunchAPIResponse) {
+			launch := NewLaunch(v, &wg)
+
+			mu.Lock()
+			launches = append(launches, launch)
+			mu.Unlock()
+		}(v)
+		
+		
 	}
 
+	
+	wg.Wait()
 	fmt.Printf("%0.2F seconds elapsed since program start\n", time.Since(StartTime).Seconds())
 	PaginateLaunches(launches, 5, past)
-
 }
