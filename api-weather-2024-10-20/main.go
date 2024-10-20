@@ -10,7 +10,7 @@ import (
 	"net/url"
 )
 
-const APIKEY string = "bdddf8e187bbf40c1695580de99c24d6"
+const APIKEY string = ""
 //https://api.openweathermap.org/data/2.5/weather?q={city name}&appid={API key}
 const ENDPOINT string = "https://api.openweathermap.org/data/2.5/weather"
 
