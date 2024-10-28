@@ -1,0 +1,9 @@
+[WRITE EVENT]2024/10/29 dir content is updted from subDir | top1.text | top1.txt to pro3.txt | subDir | top1.text | top1.txt
+[WRITE EVENT]2024/10/29 dir content is updted from pro3.txt | subDir | top1.text | top1.txt to list432423 | pro3.txt | subDir | top1.text | top1.txt
+[WRITE EVENT]2024/10/29 dir content is updted from list432423 | pro3.txt | subDir | top1.text | top1.txt to pro3.txt | subDir | top1.text | top1.txt
+[WRITE EVENT]2024/10/29 dir content is updted from pro3.txt | subDir | top1.text | top1.txt to subDir
+[WRITE EVENT]2024/10/29 dir content is updted from subDir to 
+[WRITE EVENT]2024/10/29 dir content is updted from [  ] to [ pro3.txt ]
+[WRITE EVENT]2024/10/29 dir content is updted from [ pro3.txt ] to [ pro3.txt | pro434.txt ]
+[WRITE EVENT]2024/10/29 dir content is updted from [ top1.txt ] to [ pro3 | top1.txt ]
+[WRITE EVENT]2024/10/29 dir content is updted from [ pro3 | top1.txt ] to [ pro3 | testDirSun | top1.txt ]

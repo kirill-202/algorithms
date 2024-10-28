@@ -71,13 +71,13 @@ func (p *Payment) CreatePayment(card *Card, billingAddress *BillingAddress, clie
 		p.ID = ""
 
 		jsonData, err := json.Marshal(p); if err != nil {
-			return fmt.Errorf("can't marshal json: %v", err)
+			return fmt.Errorf("can't marshal json: %w", err)
 		}
 		fmt.Println("Request Body:", string(jsonData))
 		body := bytes.NewBuffer(jsonData)
 
 		req, err := http.NewRequest("POST", "https://api.stage.noda.live/api/payments", body); if err != nil {
-			return fmt.Errorf("can't create new request: %v", err)
+			return fmt.Errorf("can't create new request: %w", err)
 		}
 	
 		apiKey := os.Getenv("API_KEY")
@@ -85,20 +85,20 @@ func (p *Payment) CreatePayment(card *Card, billingAddress *BillingAddress, clie
 		req.Header.Add("Content-Type", "application/json")
 
 		resp, err := client.Do(req); if err != nil {
-			return fmt.Errorf("issue with getting response: %v", err)
+			return fmt.Errorf("issue with getting response: %w", err)
 		}
 
 		if resp.StatusCode != http.StatusOK {
 			return fmt.Errorf("error response from the server: %v", resp.StatusCode)
-		}
-		
+		}	
+		defer resp.Body.Close()
 
 		var tempP Payment
 		byteBody, _ := io.ReadAll(resp.Body)
 		fmt.Printf("Response Body: %s\n", string(byteBody))
 		
 		err = json.Unmarshal(byteBody, &tempP); if err != nil {
-			return fmt.Errorf("can't unmarshal %v", err)
+			return fmt.Errorf("can't unmarshal %w", err)
 		}
 
 		fmt.Printf("%+v\n", tempP)
