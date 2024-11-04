@@ -19,12 +19,12 @@ const PLAYRIX_SPREAD_SHEET = "1eKxkgpwtTeDSq3R9XHMvVszyyscWp8HJUW9YV1K46es"
 const GOOGLE_CRED_PATH string = "./client_secret.json"
 const GREEDLY_API_KEY string = "JiuFBPvsVtVFIr"
 var GREEDLY_DATABASE_ID string = "v4yj834ypiupv"
-var SHEET_NAMES = os.Getenv("SHEET_NAMES")
+var SHEET_NAMES = "Static Texts,Game Text" //os.Getenv("SHEET_NAMES")
 
 var eventLogger *log.Logger
 var errorLogger *log.Logger
 var logMutex sync.Mutex
-var InitSheetHash []SheetHash
+
 
 
 func LogEvent(eventLogger *log.Logger, message string) {
@@ -36,26 +36,12 @@ func LogEvent(eventLogger *log.Logger, message string) {
 type Grid struct {
     ID      string   `json:"id"`
     Name    string   `json:"name"`
-    Status  string   `json:"status"`
-    Columns []Column `json:"columns"`
 }
 
 type View struct {
     ID      string   `json:"id"`
     Name    string   `json:"name"`
-    GridStatus  string   `json:"gridStatus"`
 	GridId  string `json:"gridId"`
-    Columns []Column `json:"columns"`
-}
-
-type Column struct {
-    ID            string       `json:"id"`
-    Name          string       `json:"name"`
-    Type          string       `json:"type"`
-    LanguageCode  string       `json:"languageCode,omitempty"`
-    IsSource      bool         `json:"isSource"`
-    IsTarget      bool         `json:"isTarget"`
-    DependsOn     string       `json:"dependsOn,omitempty"`
 
 }
 
@@ -78,8 +64,8 @@ type RowHash struct {
 }
 
 type SheetHash struct {
-	SheetID int
-	HashedColumns []RowHash
+	SheetTitle string
+	HashedRows []RowHash
 	
 }
 
@@ -182,26 +168,7 @@ func GetSheetList(sheetsString string, separator string) ([]string, error) {
 	return strings.Split(sheetsString, separator), nil
 }
 
-func ProcessSheet(id int, ss spreadsheet.Spreadsheet, wg *sync.WaitGroup, mu *sync.Mutex) {
-	defer wg.Done()
 
-    sheet, err := ss.SheetByIndex(uint(id))
-    if err != nil {
-        logMessage := fmt.Sprintf("can't open sheet %d : %v", id, err)
-        LogEvent(errorLogger, logMessage)
-        return
-    }
-
-    hashedColumns := HashRows(sheet)
-
-    // Lock to prevent concurrent write issues
-    mu.Lock()
-    InitSheetHash = append(InitSheetHash, SheetHash{SheetID: id, HashedColumns: hashedColumns})
-    mu.Unlock()
-
-    logMessage := fmt.Sprintf("all columns of sheet with id %d were hashed", id)
-    LogEvent(eventLogger, logMessage)
-}
 
 func HashRows(sh *spreadsheet.Sheet) []RowHash {
 	/*
@@ -211,29 +178,92 @@ func HashRows(sh *spreadsheet.Sheet) []RowHash {
 	rowHahes := make([]RowHash, 0, 10)
 
 	for index, row := range sh.Rows {
-		rowCheckSum := hashRowCells(row)
-		rowHahes = append(rowHahes, RowHash{RowID: index, RowCheckSum: rowCheckSum})
+		//skip the first row that contain column headers
+		if index == 0 {
+			continue
+		}
+		stringRow := rowToStringSlice(row)
+		rowCheckSum := hashRowCells(stringRow)
+		rowHahes = append(rowHahes, RowHash{RowID: index-1, RowCheckSum: rowCheckSum})
 	}
 
 	return rowHahes
 }
 
-func hashRowCells(rowCells []spreadsheet.Cell) uint32 {
+func hashRowCells(rowData []string) uint32 {
 	/* 
 	Create a CRC32 checksum table
 	Calculate the checksum for the entire concatenated string
 	*/
-	cellValues := make([]string, 0, 10)
-	for _, cell := range rowCells {
-		cellValues = append(cellValues, cell.Value)
-	}
 	//fmt.Println(cellValues)
 	//cellValues [GameTip_1 John Протираем пыль... Wiping the dust... 50 1 -]
-	concatenatedValues := strings.Join(cellValues, "")
+	concatenatedValues := strings.Join(rowData, "")
 	
 	table := crc32.MakeTable(crc32.IEEE)
 	checksum := crc32.Checksum([]byte(concatenatedValues), table)
 	return checksum
+}
+
+func rowToStringSlice(rowCells []spreadsheet.Cell) []string {
+	cellValues := make([]string, 0, 10)
+	for _, cell := range rowCells {
+		cellValues = append(cellValues, cell.Value)
+	}
+	return cellValues
+}
+
+func RecordsToRows(record Record) []string {
+	greedlyRows := make([]string, 0, 10)
+
+	greedlyRows = append(greedlyRows, string(record.ID))
+	for _, v := range record.Cells {
+		greedlyRows = append(greedlyRows, string(v.Value))
+	}
+	return greedlyRows
+}
+
+func ProcessSheet(title string, ss spreadsheet.Spreadsheet, wg *sync.WaitGroup, mu *sync.Mutex, initSheetHash *[]SheetHash) {
+	defer wg.Done()
+	fmt.Println("Started processing ", title)
+    sheet, err := ss.SheetByTitle(title)
+    if err != nil {
+        logMessage := fmt.Sprintf("can't open sheet %v : %v", title, err)
+        LogEvent(errorLogger, logMessage)
+        return
+    }
+
+    hashedRows := HashRows(sheet)
+	sheetHash := SheetHash{HashedRows: hashedRows, SheetTitle: sheet.Properties.Title}
+    // Lock to prevent concurrent write issues
+    mu.Lock()
+    *initSheetHash = append(*initSheetHash, sheetHash)
+    mu.Unlock()
+    logMessage := fmt.Sprintf("all columns of sheet with title %s were hashed", title)
+    LogEvent(eventLogger, logMessage)
+}
+
+func ProcessGridlyGrid(grid Grid, gridlySheets *[]SheetHash , client *GridlyClient, wg *sync.WaitGroup, mu *sync.Mutex) {
+	defer wg.Done()
+
+	gridlySheet := SheetHash{SheetTitle: grid.Name}
+	view, err := client.GetView(grid.ID); if err != nil {
+		logText := fmt.Sprintf("Error fetching view for %v, error: %v", grid.ID, err)
+		LogEvent(errorLogger, logText)
+	} 
+	records, err := client.GetViewRecords(view.ID); if err != nil {
+		logText := fmt.Sprintf("Error fetching records with viewID %v, error: %v", view.ID, err)
+		LogEvent(errorLogger, logText)
+	} 
+	for id, record := range records {
+		processedRows := RecordsToRows(record)
+		gridlyRowHash := RowHash{RowID: id, RowCheckSum: hashRowCells(processedRows)}
+
+		
+		gridlySheet.HashedRows = append(gridlySheet.HashedRows, gridlyRowHash)
+	}
+	mu.Lock()
+	*gridlySheets = append(*gridlySheets, gridlySheet)
+	mu.Unlock()
 }
 
 func main() {
@@ -276,42 +306,37 @@ func main() {
 		os.Exit(1)
 	}
 
+	var InitSheetHash []SheetHash
 	var wg sync.WaitGroup
     var mu sync.Mutex
-	workerNmubers := len(ssheet.Sheets)
 
-	for i:=0; i<workerNmubers; i++ {
+	for _, title := range sheetNames {
 		wg.Add(1)
-		go ProcessSheet(i, ssheet, &wg, &mu)
+		go ProcessSheet(title, ssheet, &wg, &mu, &InitSheetHash)
 	}
 
 	wg.Wait()
 
-
 	client := NewGridlyClient(GREEDLY_API_KEY)
 
-	grids, err := client.GetGreedlyTables(GREEDLY_DATABASE_ID)
-	if err != nil {
-		fmt.Println("Error fetching grids:", err)
-	} else {
-		fmt.Println("Grids:", grids)
+	var greedlySheets []SheetHash
+
+	grids, err := client.GetGreedlyTables(GREEDLY_DATABASE_ID); if err != nil {
+		LogEvent(errorLogger, "Error fetching grids from Gridly")
+		os.Exit(1)
 	}
 	for _, grid := range grids {
-		view, err := client.GetView(grid.ID)
-		if err != nil {
-			fmt.Println("Error fetching view:", err)
-		} else {
-			fmt.Println("View:", view)
-		}
+		wg.Add(1)
+		go ProcessGridlyGrid(grid, &greedlySheets, client, &wg, &mu)
 
-		records, err := client.GetViewRecords(view.ID)
-		if err != nil {
-			fmt.Println("Error fetching records:", err)
-		} else {
-			fmt.Println("Records:", records)
-		}
 	}
 
+	wg.Wait()
+
+	fmt.Println(greedlySheets)
+	fmt.Println(InitSheetHash)
+
+	if 
 
 
 
