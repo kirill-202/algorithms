@@ -12,20 +12,20 @@ import (
 	"encoding/json"
 	"io"
 	"time"
+	"bytes"
 )
 
-
-const LOG_FILE_PATH string = "./logs.txt"
-const PLAYRIX_SPREAD_SHEET = "1eKxkgpwtTeDSq3R9XHMvVszyyscWp8HJUW9YV1K46es"
-const GOOGLE_CRED_PATH string = "./client_secret.json"
-const GREEDLY_API_KEY string = "JiuFBPvsVtVFIr"
+const PAUSE_DURATION int = 20
+var LOG_FILE_PATH string = "./logs.txt"
+var PLAYRIX_SPREAD_SHEET_ID = "1eKxkgpwtTeDSq3R9XHMvVszyyscWp8HJUW9YV1K46es"
+var GOOGLE_CRED_PATH string = "./client_secret.json"
+var GREEDLY_API_KEY string = "JiuFBPvsVtVFIr"
 var GREEDLY_DATABASE_ID string = "v4yj834ypiupv"
 var SHEET_NAMES = "Static Texts,Game Text" //os.Getenv("SHEET_NAMES")
 
 var eventLogger *log.Logger
 var errorLogger *log.Logger
 var logMutex sync.Mutex
-
 
 
 func LogEvent(eventLogger *log.Logger, message string) {
@@ -42,9 +42,10 @@ type Grid struct {
 type View struct {
     ID      string   `json:"id"`
     Name    string   `json:"name"`
-	GridId  string `json:"gridId"`
+	GridId  string   `json:"gridId"`
 
 }
+
 
 type Record struct {
     ID    string `json:"id"`
@@ -53,7 +54,7 @@ type Record struct {
 
 //Columns are actually rows {column1 None} and so on
 type Cell struct {
-    //ColumnID string     `json:"columnId"`
+    ColumnID string     `json:"columnId"`
     Value    string 	`json:"value"`
 }
 
@@ -67,6 +68,7 @@ type RowHash struct {
 
 type SheetHash struct {
 	SheetTitle string
+	Reference string //for viewID
 	HashedRows []RowHash
 	
 }
@@ -87,9 +89,9 @@ func NewGridlyClient(apiKey string) *GridlyClient {
 }
 
 
-func (c *GridlyClient) doRequest(method, endpoint string) ([]byte, error) {
+func (c *GridlyClient) doRequest(method, endpoint string, body []byte) ([]byte, error) {
 	url := fmt.Sprintf("%s%s", c.BaseURL, endpoint)
-	req, err := http.NewRequest(method, url, nil)
+	req, err := http.NewRequest(method, url, bytes.NewBuffer(body))
 	if err != nil {
 		return nil, fmt.Errorf("error creating request: %v", err)
 	}
@@ -107,17 +109,51 @@ func (c *GridlyClient) doRequest(method, endpoint string) ([]byte, error) {
 		return nil, fmt.Errorf("request failed with status %d", resp.StatusCode)
 	}
 
-	body, err := io.ReadAll(resp.Body)
+	responseBody, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, fmt.Errorf("error reading response body: %v", err)
 	}
-	return body, nil
+	return responseBody, nil
 }
+
+func (c *GridlyClient) UpdateGridlyRow(viewID string, newRows []RowHash) error {
+	for _, row := range newRows {
+		recordID := row.RowContent[0]
+		columnValues := row.RowContent[1:]
+
+		var cells []Cell
+		for i, value := range columnValues {
+			columnID := fmt.Sprintf("column%d", i+1)
+			cells = append(cells, Cell{ColumnID: columnID, Value: value})
+		}
+
+		record := Record{
+			ID:    recordID,
+			Cells: cells,
+		}
+
+		jsonBody, err := json.Marshal(record)
+		if err != nil {
+			return fmt.Errorf("error marshaling JSON: %v", err)
+		}
+
+		// Use doRequest with PATCH and JSON body
+		endpoint := fmt.Sprintf("/views/%s/records/%s", viewID, recordID)
+		_, err = c.doRequest("PATCH", endpoint, jsonBody)
+		if err != nil {
+			return fmt.Errorf("error updating record %s: %v", recordID, err)
+		}
+
+		fmt.Printf("Successfully updated record %s\n", recordID)
+	}
+	return nil
+}
+
 
 // Fetch list of grids
 func (c *GridlyClient) GetGreedlyTables(databaseID string) ([]Grid, error) {
 	endpoint := fmt.Sprintf("/grids?dbId=%s", databaseID)
-	body, err := c.doRequest("GET", endpoint)
+	body, err := c.doRequest("GET", endpoint, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -132,7 +168,7 @@ func (c *GridlyClient) GetGreedlyTables(databaseID string) ([]Grid, error) {
 // Fetch views for a specific grid
 func (c *GridlyClient) GetView(gridID string) (View, error) {
 	endpoint := fmt.Sprintf("/views?gridId=%s", gridID)
-	body, err := c.doRequest("GET", endpoint)
+	body, err := c.doRequest("GET", endpoint, nil)
 	if err != nil {
 		return View{}, err
 	}
@@ -141,6 +177,7 @@ func (c *GridlyClient) GetView(gridID string) (View, error) {
 	if err := json.Unmarshal(body, &views); err != nil {
 		return View{}, fmt.Errorf("error parsing JSON: %v", err)
 	}
+
 	if len(views) > 0 {
 		return views[0], nil
 	}
@@ -150,7 +187,7 @@ func (c *GridlyClient) GetView(gridID string) (View, error) {
 // Fetch records for a specific view
 func (c *GridlyClient) GetViewRecords(viewID string) ([]Record, error) {
 	endpoint := fmt.Sprintf("/views/%s/records", viewID)
-	body, err := c.doRequest("GET", endpoint)
+	body, err := c.doRequest("GET", endpoint, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -159,6 +196,7 @@ func (c *GridlyClient) GetViewRecords(viewID string) ([]Record, error) {
 	if err := json.Unmarshal(body, &records); err != nil {
 		return nil, fmt.Errorf("error parsing JSON: %v", err)
 	}
+
 	return records, nil
 }
 
@@ -257,7 +295,7 @@ func ProcessGridlyGrid(grid Grid, gridlySheets map[string]SheetHash, client *Gri
 		LogEvent(errorLogger, logText)
 		return
 	}
-
+	gridlySheet.Reference = view.ID
 	records, err := client.GetViewRecords(view.ID)
 	if err != nil {
 		logText := fmt.Sprintf("Error fetching records with viewID %v, error: %v", view.ID, err)
@@ -337,9 +375,9 @@ func main() {
 		os.Exit(1)
 	}
 
-	ssheet, err := service.FetchSpreadsheet(PLAYRIX_SPREAD_SHEET)
+	ssheet, err := service.FetchSpreadsheet(PLAYRIX_SPREAD_SHEET_ID)
 	if err != nil {
-		logMessage := fmt.Sprintf("can't open spreadsheet %s : %v", PLAYRIX_SPREAD_SHEET, err)
+		logMessage := fmt.Sprintf("can't open spreadsheet %s : %v", PLAYRIX_SPREAD_SHEET_ID, err)
 		LogEvent(errorLogger, logMessage)
 		os.Exit(1)
 	}
@@ -374,8 +412,8 @@ func main() {
 
 	LogEvent(eventLogger, "All Init sheets are processed and hashed.")
 
-	fmt.Println("Greedly Sheets:", gridlySheets)
-	fmt.Println("Initial Sheet Hash:", initSheetHash)
+	// fmt.Println("Greedly Sheets:", gridlySheets)
+	// fmt.Println("Initial Sheet Hash:", initSheetHash)
 	for k, v := range gridlySheets {
 		same, _ := SheetsEqual(k, v, initSheetHash)
 		if  same {
@@ -390,8 +428,8 @@ func main() {
 	// Run endless loop to get data from Google Sheet and compare to Gridly
 	for {
 		LogEvent(eventLogger, "Initiate a new Gridly check")
-
-		time.Sleep(20 * time.Second)
+		time.Sleep(time.Duration(PAUSE_DURATION) * time.Second)
+		fmt.Println("Initiate a new Gridly check")
 
 		currentGoogleHash := make(map[string]SheetHash)
 		var wg sync.WaitGroup
@@ -405,15 +443,23 @@ func main() {
 		wg.Wait()
 
 		for k, v := range gridlySheets {
-			same, rowToPush := SheetsEqual(k, v, initSheetHash)
+			same, rowsToPush := SheetsEqual(k, v, currentGoogleHash)
+			fmt.Println("THIS ARE ROWS TO PUSH", rowsToPush)
 			if !same {
 				logText := fmt.Sprintf("Greedly Sheet %s is not equal or found in Init Google Sheet. Need to update Greedly", k)
 				LogEvent(eventLogger, logText)
+				err := client.UpdateGridlyRow(v.Reference, rowsToPush); if err != nil {
+					logText := fmt.Sprintf("Error updating rows: %v", err)
+					LogEvent(errorLogger, logText)
+				}
 			} else { 
 				logText := fmt.Sprintf("Greedly Sheet %s fully match Init Google Sheet\n", k)
 				LogEvent(eventLogger, logText)
 			}
 		}
+		gridlySheets = currentGoogleHash
+		currentGoogleHash = nil
+		
 
 	}
 
