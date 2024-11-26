@@ -7,12 +7,17 @@ import (
 	"fmt"
 	"html/template"
 	"time"
+	"strings"
 )
 const PORT string = "8080"
 const ADMIN_PORT string = "8081"
 
 
-
+type FormData struct {
+	Name    string
+	Email   string
+	Feedback string
+}
 
 var TemplateCache *template.Template
 
@@ -70,11 +75,61 @@ func HomePageHandler(w http.ResponseWriter, r *http.Request) {
 	renderTemplate(w, "index.html", nil)
 }
 
+func FeedbackPageHandler(w http.ResponseWriter, r *http.Request) {
+	renderTemplate(w, "feedback.html", nil)
+}
+
 func AdminPageHandler(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(w, "Welcome to the Admin Dashboard!")
 }
 
+func ThanksPageHandler(w http.ResponseWriter, r *http.Request) {
+	renderTemplate(w, "thanks.html", nil)
+}
 
+
+func SubmitFormHandler(w http.ResponseWriter, r *http.Request) {
+	err := r.ParseForm(); if err != nil {
+		log.Printf("Error parsing form data: %v", err)
+		http.Error(w, "Unable to parse form data", http.StatusInternalServerError)
+		return
+	}
+	formData := FormData{Name: r.FormValue("name"), Email: r.FormValue("email"), Feedback: r.FormValue("feedback")}
+	var errors []string
+
+	if len(formData.Email) == 0 {
+		errors = append(errors, "Email is required.")
+	} else if !isValidEmail(formData.Email) {
+		errors = append(errors, "Gmail email is required.")
+	}
+
+	if len(formData.Feedback) == 0 {
+		errors = append(errors, "Feedback is required.")
+	}
+	fmt.Println("Errors", errors)
+	if len(errors) > 0 {
+		stringErrors := strings.Join(errors, " ")
+		errorData := map[string]string{
+			"Errors": stringErrors,
+		}
+		TemplateCache.ExecuteTemplate(w, "error.html", errorData)
+		return
+
+	}
+	http.Redirect(w, r, "/thanks", http.StatusSeeOther)
+	saveNameToAdmin(formData)
+}
+
+func saveNameToAdmin(form FormData) {
+	fmt.Println("wait...", form)
+}
+
+func isValidEmail(email string) bool {
+	if strings.Contains(email, "@gmail") && strings.Contains(email, ".") {
+		return true
+	}
+	return false
+}
 
 
 func main() {
@@ -91,6 +146,9 @@ func main() {
 
 
 	server.AddHandler("/", HomePageHandler)
+	server.AddHandler("/feedback", FeedbackPageHandler)
+	server.AddHandler("/submit", SubmitFormHandler)
+	server.AddHandler("/thanks", ThanksPageHandler)
 	adminServer.AddHandler("/", AdminPageHandler)
 
 	// Start  servers in a goroutines

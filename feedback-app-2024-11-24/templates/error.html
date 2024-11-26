@@ -1,0 +1,15 @@
+<!DOCTYPE html>
+<html lang="en">
+{{template "head" . }}
+<body>
+    {{ template "navbar" . }}
+    <div class="error-messages">
+        <!-- Display the error messages -->
+        <p>You made the following mistakes:</p>
+
+        <p>{{ .Errors }}</p>
+        
+        <p>Please try again.</p>
+    </div>
+</body>
+</html>
