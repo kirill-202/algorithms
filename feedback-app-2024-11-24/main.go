@@ -5,12 +5,33 @@ import (
 	//"errors"
 	"net/http"
 	"fmt"
-	//"html/template"
+	"html/template"
 	"time"
 )
 const PORT string = "8080"
 const ADMIN_PORT string = "8081"
 
+
+
+
+var TemplateCache *template.Template
+
+func setupStaticFileServer(muxes ...*http.ServeMux) {
+	for _, mux := range muxes {
+		mux.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("./static"))))
+	}
+}
+func setupTemplateCache() {	
+	TemplateCache = template.Must(template.New("").ParseGlob("templates/*.html"))
+}
+
+func renderTemplate(w http.ResponseWriter, tmpl string, data interface{}) {
+	err := TemplateCache.ExecuteTemplate(w, tmpl, data)
+	if err != nil {
+		http.Error(w, "Error rendering template", http.StatusInternalServerError)
+		log.Println("Template execution error:", err)
+	}
+}
 
 type ServerContainer struct {
 	Server *http.Server
@@ -37,10 +58,16 @@ func (sc *ServerContainer) StartServer() {
 	}
 }
 
+func (sc *ServerContainer) AddHandler(endpoint string, handler func(http.ResponseWriter, *http.Request)) {
+	
+	if mux, ok := sc.Server.Handler.(*http.ServeMux); ok {
+		mux.HandleFunc(endpoint, handler)
+	}
+}
 
 
 func HomePageHandler(w http.ResponseWriter, r *http.Request) {
-	fmt.Fprintf(w, "Hello, World!")
+	renderTemplate(w, "index.html", nil)
 }
 
 func AdminPageHandler(w http.ResponseWriter, r *http.Request) {
@@ -52,15 +79,19 @@ func AdminPageHandler(w http.ResponseWriter, r *http.Request) {
 
 func main() {
 
+	
 	adminMux := http.NewServeMux()
 	userMux := http.NewServeMux()
 
-	userMux.HandleFunc("/", HomePageHandler)
-	adminMux.HandleFunc("/", AdminPageHandler)
+	setupStaticFileServer(adminMux, userMux)
+	setupTemplateCache()
 
 	server := NewServerContainer("Main", PORT, userMux)
 	adminServer:= NewServerContainer("Admin", ADMIN_PORT, adminMux)
 
+
+	server.AddHandler("/", HomePageHandler)
+	adminServer.AddHandler("/", AdminPageHandler)
 
 	// Start  servers in a goroutines
 	go server.StartServer()
