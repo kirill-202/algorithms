@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard</title>
+    <link rel="stylesheet" href="/static/admin.css">
+</head>
+<body>
+    <div class="admin-container">
+        <header class="admin-header">
+            <h1>Admin Dashboard</h1>
+        </header>
+        <main class="admin-content">
+            <h2>Feedback Information</h2>
+            <div class="feedback-info">
+                <!-- Dynamic feedback content will be inserted here -->
+                {{range .}}
+                <div class="feedback-entry">
+                    <p><strong>Name:</strong> {{.Name}}</p>
+                    <p><strong>Email:</strong> {{.Email}}</p>
+                    <p><strong>Feedback:</strong> {{.Feedback}}</p>
+                </div>
+                <hr>
+                {{end}}
+            </div>
+        </main>
+        <footer class="admin-footer">
+            <p>&copy; Kirill Form Taker</p>
+        </footer>
+    </div>
+</body>
+</html>

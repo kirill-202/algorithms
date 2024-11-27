@@ -11,6 +11,7 @@ import (
 )
 const PORT string = "8080"
 const ADMIN_PORT string = "8081"
+const ADMIN_BASE_URL = "http://localhost"
 
 
 type FormData struct {
@@ -19,6 +20,7 @@ type FormData struct {
 	Feedback string
 }
 
+var feedbackData []FormData
 var TemplateCache *template.Template
 
 func setupStaticFileServer(muxes ...*http.ServeMux) {
@@ -80,7 +82,7 @@ func FeedbackPageHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func AdminPageHandler(w http.ResponseWriter, r *http.Request) {
-	fmt.Fprintf(w, "Welcome to the Admin Dashboard!")
+	renderTemplate(w, "admin.html", feedbackData)
 }
 
 func ThanksPageHandler(w http.ResponseWriter, r *http.Request) {
@@ -117,11 +119,13 @@ func SubmitFormHandler(w http.ResponseWriter, r *http.Request) {
 
 	}
 	http.Redirect(w, r, "/thanks", http.StatusSeeOther)
-	saveNameToAdmin(formData)
+
+	saveToAdmin(formData)
 }
 
-func saveNameToAdmin(form FormData) {
-	fmt.Println("wait...", form)
+func saveToAdmin(form FormData) {
+
+	feedbackData = append(feedbackData, form)
 }
 
 func isValidEmail(email string) bool {
